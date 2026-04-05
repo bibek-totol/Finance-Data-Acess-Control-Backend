@@ -2,16 +2,54 @@ import { Router } from 'express';
 import { financeController } from '../../controllers/financeController.js';
 import { authenticate } from '../../middlewares/auth.js';
 import { policies } from '../../middlewares/rbac.js';
+import { validateRequestForBody } from '../../middlewares/validateRequestForBody.js';
+import { validateRequestForQuery } from '../../middlewares/validateRequestForQuery.js';
+import { 
+  createFinancialRecordSchema, 
+  updateFinancialRecordSchema, 
+  queryFinancialRecordSchema 
+} from '../../validators/finance.schemas.js';
 
 const router = Router();
 
-/**
- * RBAC sketch (implement in controllers + refine policies):
- * - GET list/summary: viewer+ or analyst+ depending on product rules
- * - POST/PUT/DELETE: admin only (typical for assignment)
- */
-router.get('/records', authenticate, policies.viewerAndAbove, financeController.list);
-router.post('/records', authenticate, policies.adminOnly, financeController.create);
-router.get('/dashboard/summary', authenticate, policies.analystAndAbove, financeController.dashboardSummary);
+// Finance Records
+router.get(
+  '/records', 
+  authenticate, 
+  policies.analystAndAbove, 
+  validateRequestForQuery(queryFinancialRecordSchema),
+  financeController.list
+);
+
+router.post(
+  '/records', 
+  authenticate, 
+  policies.adminOnly, 
+  validateRequestForBody(createFinancialRecordSchema),
+  financeController.create
+);
+
+router.put(
+  '/records/:id', 
+  authenticate, 
+  policies.adminOnly, 
+  validateRequestForBody(updateFinancialRecordSchema),
+  financeController.update
+);
+
+router.delete(
+  '/records/:id', 
+  authenticate, 
+  policies.adminOnly, 
+  financeController.delete
+);
+
+// Dashboard
+router.get(
+  '/dashboard/summary', 
+  authenticate, 
+  policies.viewerAndAbove, 
+  financeController.dashboardSummary
+);
 
 export default router;

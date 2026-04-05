@@ -25,4 +25,8 @@ export class ApiError extends Error {
   static notFound(message = 'Not found') {
     return new ApiError(StatusCodes.NOT_FOUND, message);
   }
+
+  static conflict(message: string, details?: unknown) {
+    return new ApiError(StatusCodes.CONFLICT, message, details);
+  }
 }
