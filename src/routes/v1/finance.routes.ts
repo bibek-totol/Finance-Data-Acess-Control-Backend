@@ -12,7 +12,7 @@ import {
 
 const router = Router();
 
-// Finance Records
+
 router.get(
   '/records', 
   authenticate, 
@@ -44,7 +44,7 @@ router.delete(
   financeController.delete
 );
 
-// Dashboard
+
 router.get(
   '/dashboard/summary', 
   authenticate, 

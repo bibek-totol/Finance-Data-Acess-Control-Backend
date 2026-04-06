@@ -1,10 +1,43 @@
 import type { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import bcrypt from 'bcryptjs';
 import { UserModel } from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export const userController = {
   
+  create: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email, password, role } = req.body;
+
+      // Check if email already exists
+      const existingUser = await UserModel.findOne({ email });
+      if (existingUser) {
+        throw ApiError.conflict('User with this email already exists');
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(password, salt);
+
+      // Create user
+      const user = await UserModel.create({
+        email: email.toLowerCase(),
+        passwordHash,
+        role: role || undefined,
+      });
+
+      const userResponse = await UserModel.findById(user.id).select('-passwordHash');
+
+      res.status(StatusCodes.CREATED).json({
+        message: 'User created successfully',
+        data: userResponse,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   list: async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const users = await UserModel.find().select('-passwordHash');

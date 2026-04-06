@@ -2,21 +2,26 @@ import type { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { FinancialRecordModel } from '../models/FinancialRecord.js';
 import { ApiError } from '../utils/ApiError.js';
-import mongoose from 'mongoose';
 
 export const financeController = {
  
   list: async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { type, category, startDate, endDate, page = 1, limit = 10 } = req.query as any;
-
-      const filter: any = {};
+      const { type, category, startDate, endDate, search, page = 1, limit = 10 } = req.query as any;
+      const filter: any = { isDeleted: { $ne: true } };
       if (type) filter.type = type;
       if (category) filter.category = category;
       if (startDate || endDate) {
         filter.date = {};
         if (startDate) filter.date.$gte = new Date(startDate);
         if (endDate) filter.date.$lte = new Date(endDate);
+      }
+
+      if (search) {
+        filter.$or = [
+          { category: { $regex: search, $options: 'i' } },
+          { notes: { $regex: search, $options: 'i' } },
+        ];
       }
 
       const skip = (page - 1) * limit;
@@ -72,10 +77,14 @@ export const financeController = {
       const { id } = req.params;
       const updates = req.body;
 
-      const record = await FinancialRecordModel.findByIdAndUpdate(id, updates, {
-        new: true,
-        runValidators: true,
-      });
+      const record = await FinancialRecordModel.findOneAndUpdate(
+        { _id: id, isDeleted: { $ne: true } },
+        updates,
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
 
       if (!record) {
         throw ApiError.notFound('Record not found');
@@ -91,18 +100,22 @@ export const financeController = {
   },
 
   
-  delete: async (req: Request, res: Response, next: NextFunction) => {
+    delete: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
 
-      const record = await FinancialRecordModel.findByIdAndDelete(id);
+      const record = await FinancialRecordModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true, deletedAt: new Date() },
+        { new: true }
+      );
 
       if (!record) {
         throw ApiError.notFound('Record not found');
       }
 
       res.status(StatusCodes.OK).json({
-        message: 'Record deleted successfully',
+        message: 'Record deleted successfully (soft delete)',
       });
     } catch (error) {
       next(error);
@@ -110,10 +123,11 @@ export const financeController = {
   },
 
   
-  dashboardSummary: async (req: Request, res: Response, next: NextFunction) => {
+  dashboardSummary: async (_req: Request, res: Response, next: NextFunction) => {
     try {
       
       const totals = await FinancialRecordModel.aggregate([
+        { $match: { isDeleted: { $ne: true } } },
         {
           $group: {
             _id: '$type',
@@ -128,6 +142,7 @@ export const financeController = {
 
       
       const categoryBreakdown = await FinancialRecordModel.aggregate([
+        { $match: { isDeleted: { $ne: true } } },
         {
           $group: {
             _id: { type: '$type', category: '$category' },
@@ -151,6 +166,7 @@ export const financeController = {
       const trends = await FinancialRecordModel.aggregate([
         {
           $match: {
+            isDeleted: { $ne: true },
             date: { $gte: sixMonthsAgo },
           },
         },
@@ -186,7 +202,7 @@ export const financeController = {
       });
 
       
-      const recentActivity = await FinancialRecordModel.find()
+      const recentActivity = await FinancialRecordModel.find({ isDeleted: { $ne: true } })
         .sort({ createdAt: -1 })
         .limit(5);
 
